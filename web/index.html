@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f4d2e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="AgriVision" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <script>
+      // Apply the saved theme before first paint so dark mode does not flash light. Light is the default.
+      try {
+        var saved = localStorage.getItem('agrirover-theme');
+        document.documentElement.dataset.theme = saved === 'dark' ? 'dark' : 'light';
+        var lang = localStorage.getItem('agrirover-lang');
+        if (lang === 'kn' || lang === 'hi') document.documentElement.lang = lang;
+      } catch (e) {}
+    </script>
+    <title>AgriVision Field Console</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
