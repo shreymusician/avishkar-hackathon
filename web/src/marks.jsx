@@ -19,15 +19,6 @@ export function StopMark() {
   );
 }
 
-export function Lamp({ on }) {
-  return (
-    <svg className="mark small" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="14" cy="12" r="6.5" fill={on ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" />
-      {on && <path d="M3 8 H6 M2 12 H5.5 M3 16 H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />}
-    </svg>
-  );
-}
-
 /** The AgriVision leaf mark: two leaves and a signal arc, after the project artwork. */
 export function Logo() {
   return (
@@ -110,14 +101,6 @@ export function IconControl() {
       <circle cx="12" cy="12" r="8.5" />
       <circle cx="12" cy="12" r="2.2" />
       <path d="M12 9.8 V3.5 M10 13.2 L4.6 16.4 M14 13.2 L19.4 16.4" />
-    </svg>
-  );
-}
-
-export function IconBulb() {
-  return (
-    <svg className="mark small" viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
-      <path d="M9 18 H15 M10 21 H14 M12 3 a6 6 0 0 0 -3.6 10.8 c0.7 0.6 1 1.3 1 2.2 H14.6 c0 -0.9 0.3 -1.6 1 -2.2 A6 6 0 0 0 12 3 Z" />
     </svg>
   );
 }

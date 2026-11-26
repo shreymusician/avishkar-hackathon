@@ -312,23 +312,16 @@ api.get('/history', async (c) => {
   }
 });
 
-// Conditions for the field. The position comes from, in order: the rover's own GPS when it has a fix;
-// the phone or laptop looking at the dashboard, which reports its own location automatically (the farmer
-// watches from near the land); and last the network address (city level, often a wrong city) of whoever is
-// asking. Weather, soil and air data are fetched and cached here, so browsers never call third parties.
-// The phone's position travels in a header, not the URL, so it stays out of access logs.
+// Conditions for the field. The position comes from the phone or laptop looking at the dashboard, which reports its
+// own location automatically (the farmer watches from near the land), and otherwise from the network address (city
+// level, often a wrong city) of whoever is asking. Weather, soil and air data are fetched and cached here, so browsers
+// never call third parties. The phone's position travels in a header, not the URL, so it stays out of access logs.
 api.get('/environment', async (c) => {
-  // The GPS hangs on the third ESP32; a rover board that reports one still works.
-  const gps = hub.pose.gps ?? (hub.state.online ? hub.state.gps : null);
-  const phone = gps ? null : parsePhonePosition(c.req.header('x-phone-position'));
+  const phone = parsePhonePosition(c.req.header('x-phone-position'));
   try {
-    const position = gps
-      ? { lat: gps.lat, lon: gps.lon, accuracy: gps.hdop != null ? Math.round(gps.hdop * 5) : null, sats: gps.sats }
-      : phone
-        ? { ...phone, sats: null }
-        : { ...(await environment.locateByAddress(getConnInfo(c).remote.address)), sats: null };
+    const position = phone ?? (await environment.locateByAddress(getConnInfo(c).remote.address));
     const data = await environment.forPosition(position);
-    return c.json({ source: gps ? 'rover' : phone ? 'phone' : 'network', position, data, updatedAt: new Date().toISOString() });
+    return c.json({ source: phone ? 'phone' : 'network', position, data, updatedAt: new Date().toISOString() });
   } catch (err) {
     console.warn(`[environment] ${err.message}`);
     return c.json({ error: 'upstream' }, 502);

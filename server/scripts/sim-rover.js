@@ -1,6 +1,6 @@
 // A stand-in rover for developing without hardware. It speaks exactly what the
 // ESP32 firmware speaks, so the whole path (browser, server, rover) is the real one.
-// Terminal: `d` + Enter flips the fake light sensor, `f` + Enter trips the fake fire sensor, `g` + Enter toggles a fake rover GPS fix. Auto navigation plays a
+// Terminal: `d` + Enter flips the fake light sensor, `f` + Enter trips the fake fire sensor. Auto navigation plays a
 // believable loop of drive, scan, turn with random distances.
 import WebSocket from 'ws';
 
@@ -26,10 +26,6 @@ let scan = { c: 150 };
 let soil = 42;
 let rain = 3;
 let fire = 0;
-// Rover GPS: off by default (no module fitted yet); type `g` + Enter to give it a fix that drifts slowly.
-let gpsOn = process.env.SIM_GPS === '1';
-let gpsLat = 12.9716;
-let gpsLon = 77.5946;
 // The real rover's buzzer (GPIO 4) is a scaffold for now, so the simulator reports none unless SIM_BUZZER=1.
 const BUZZER_FITTED = process.env.SIM_BUZZER === '1';
 let muted = false;
@@ -91,11 +87,6 @@ process.stdin.on('data', (chunk) => {
     console.log(`[sim] fire channels: ${fire}`);
     return;
   }
-  if (cmd === 'g') {
-    gpsOn = !gpsOn;
-    console.log(`[sim] rover GPS ${gpsOn ? 'on' : 'off'}`);
-    return;
-  }
   if (cmd !== 'd') return;
   dark = !dark;
   console.log(`[sim] sensor: ${dark ? 'dark' : 'bright'}`);
@@ -107,7 +98,7 @@ function connect() {
   const status = () =>
     ws.readyState === WebSocket.OPEN &&
     ws.send(
-      JSON.stringify({ type: 'status', motion, front, rear, auto, dark, nav, navState, sonar: true, scan, sensors: { soil: Math.round(soil), rain: Math.round(rain), fire }, buzzer: { fitted: BUZZER_FITTED, muted }, ...(gpsOn ? { gps: { lat: gpsLat, lon: gpsLon, sats: 9, hdop: 1.1 } } : {}), rssi: -52 }),
+      JSON.stringify({ type: 'status', motion, front, rear, auto, dark, nav, navState, sonar: true, scan, sensors: { soil: Math.round(soil), rain: Math.round(rain), fire }, buzzer: { fitted: BUZZER_FITTED, muted }, rssi: -52 }),
     );
 
   ws.on('open', () => {
@@ -120,10 +111,6 @@ function connect() {
         console.log('[sim] failsafe stop');
       }
       stepNav();
-      if (gpsOn) {
-        gpsLat += (Math.random() - 0.4) * 0.00004;
-        gpsLon += (Math.random() - 0.4) * 0.00004;
-      }
       soil = Math.min(100, Math.max(5, soil + (Math.random() - 0.5) * 2));
       rain = Math.min(100, Math.max(0, rain + (Math.random() - 0.5) * 1.5));
       status();

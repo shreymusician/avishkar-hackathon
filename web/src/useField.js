@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-const POLL_MS = 30 * 1000; // the server caches weather, so asking often is cheap; this keeps the rover's position live
+const POLL_MS = 30 * 1000; // the server caches weather, so asking often is cheap; this keeps the readings current
 
 /**
  * This device's own location, asked for automatically (the farmer watches from near the land, so the phone is a good
@@ -33,11 +33,10 @@ function deviceFix() {
 }
 
 /**
- * Live field conditions from the server (`/api/environment`). The server picks the position: the rover's own GPS
- * when it has a fix (source 'rover'), otherwise this device's location, sent automatically (source 'phone'), and
- * only when neither is available the network location of this connection (source 'network', city level, often the
- * wrong city). `locationIssue` says why this device's location was not used. The browser never calls third-party
- * APIs itself.
+ * Live field conditions from the server (`/api/environment`). The server picks the position: this device's location,
+ * sent automatically (source 'phone'), and otherwise the network location of this connection (source 'network', city
+ * level, often the wrong city). `locationIssue` says why this device's location was not used. The browser never calls
+ * third-party APIs itself.
  *
  * status: 'loading' | 'ready' | 'error'
  */

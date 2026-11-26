@@ -86,19 +86,6 @@ export function parseDashboardMessage(raw) {
 /** A distance in whole centimetres, or null when the rover has no reading. */
 const distance = (n) => (Number.isInteger(n) && n >= 0 && n <= 500 ? n : null);
 
-/** Position from a GPS module, when it has a fix. (0, 0) is what a module reports without one. */
-function parseGps(g) {
-  const fixed =
-    g && Number.isFinite(g.lat) && Number.isFinite(g.lon) && Math.abs(g.lat) <= 90 && Math.abs(g.lon) <= 180 && !(g.lat === 0 && g.lon === 0);
-  if (!fixed) return null;
-  return {
-    lat: Math.round(g.lat * 1e6) / 1e6,
-    lon: Math.round(g.lon * 1e6) / 1e6,
-    sats: Number.isInteger(g.sats) && g.sats >= 0 && g.sats <= 64 ? g.sats : null,
-    hdop: Number.isFinite(g.hdop) && g.hdop >= 0 && g.hdop < 100 ? Math.round(g.hdop * 10) / 10 : null,
-  };
-}
-
 /** The registration frame every device sends first. */
 function parseRegister(msg) {
   if (typeof msg.deviceId !== 'string' || !DEVICE_ID.test(msg.deviceId)) {
@@ -147,13 +134,13 @@ export function parseSonarNodeMessage(raw) {
 
   if (msg.type === 'device_register') return parseRegister(msg);
   if (msg.type === 'pose_status') {
-    // Tilt and heading from the board's motion sensor (null without one), and its GPS fix.
+    // Tilt and heading from the board's motion sensor (null without one).
     const angle = (n, min, max) => (Number.isFinite(n) && n >= min && n <= max ? Math.round(n * 10) / 10 : null);
     const roll = msg.imu === true ? angle(msg.roll, -180, 180) : null;
     const pitch = msg.imu === true ? angle(msg.pitch, -90, 90) : null;
     const yaw = msg.imu === true ? angle(msg.yaw, 0, 360) : null;
     const imu = roll !== null && pitch !== null && yaw !== null;
-    return { ok: true, msg: { type: 'pose_status', imu, roll, pitch, yaw, gps: parseGps(msg.gps) } };
+    return { ok: true, msg: { type: 'pose_status', imu, roll, pitch, yaw } };
   }
   if (msg.type === 'sonar_status') {
     const rssi = Number.isFinite(msg.rssi) && msg.rssi <= 0 && msg.rssi >= -127 ? Math.round(msg.rssi) : null;
@@ -219,13 +206,12 @@ export function parseRoverMessage(raw) {
     // (wetter is higher), fire is how many of the 5 flame channels see fire (0-5).
     const level = (n, max) => (Number.isInteger(n) && n >= 0 && n <= max ? n : null);
     const sensors = { soil: level(msg.sensors?.soil, 100), rain: level(msg.sensors?.rain, 100), fire: level(msg.sensors?.fire, 5) };
-    const gps = parseGps(msg.gps);
     // The buzzer: fitted says whether the rover has one; muted silences its automatic alarms.
     const buzzer = { fitted: msg.buzzer?.fitted === true, muted: msg.buzzer?.muted === true };
     const scan = { l: distance(msg.scan?.l), c: distance(msg.scan?.c), r: distance(msg.scan?.r) };
     return {
       ok: true,
-      msg: { type: 'status', motion: msg.motion, front: msg.front, rear: msg.rear, auto, dark, nav, navState, sonar, scan, sensors, gps, buzzer, rssi },
+      msg: { type: 'status', motion: msg.motion, front: msg.front, rear: msg.rear, auto, dark, nav, navState, sonar, scan, sensors, buzzer, rssi },
     };
   }
   return { ok: false, error: 'unsupported type' };

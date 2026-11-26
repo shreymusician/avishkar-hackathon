@@ -88,18 +88,6 @@ test('field sensor readings reach dashboards', () => {
   assert.equal(dash.last('rover').rover.sensors.fire, 3);
 });
 
-test('rover GPS fixes are kept in state, and cleared when the rover goes', () => {
-  const { hub, rover, dash } = setup();
-  const status = (gps) => JSON.stringify({ type: 'status', motion: 'stop', front: 0, rear: 0, ...(gps ? { gps } : {}), rssi: -50 });
-  hub.handleRover(rover, status({ lat: 12.97161, lon: 77.59461, sats: 8, hdop: 1.2 }));
-  assert.deepEqual(hub.state.gps, { lat: 12.97161, lon: 77.59461, sats: 8, hdop: 1.2 });
-  assert.equal(dash.last('rover').rover.gps.lat, 12.97161);
-  hub.handleRover(rover, status(null)); // fix lost
-  assert.equal(hub.state.gps, null);
-  hub.handleRover(rover, status({ lat: 12.97161, lon: 77.59461 }));
-  hub.removeRover(rover);
-  assert.equal(hub.state.gps, null);
-});
 
 test('horn and alarm mute reach the rover; buzzer state reaches dashboards', () => {
   const { hub, rover, dash } = setup();
@@ -502,19 +490,19 @@ test('the ultrasonic board reports four distances to dashboards, only on change,
   assert.deepEqual([dash.last('sonar').sonar.online, dash.last('sonar').sonar.front], [false, null]);
 });
 
-test('tilt, heading and GPS from the third board reach dashboards, bad values are dropped, and leaving clears them', () => {
+test('tilt and heading from the third board reach dashboards, bad values are dropped, and leaving clears them', () => {
   const { hub, dash } = setup();
   const board = fakeSocket();
   hub.registerSonarNode(board, JSON.stringify({ type: 'device_register', deviceId: 'SONAR-01', key: '' }));
   const beat = (extra) => hub.handleSonarNode(board, JSON.stringify({ type: 'pose_status', imu: true, roll: 3.24, pitch: -7, yaw: 90, ...extra }));
   const frames = () => dash.sent.filter((m) => m.type === 'pose').length;
-  beat({ gps: { lat: 12.9715987, lon: 77.5945627, sats: 8, hdop: 1.14 } });
-  assert.deepEqual(dash.last('pose').pose, { imu: true, roll: 3.2, pitch: -7, yaw: 90, gps: { lat: 12.971599, lon: 77.594563, sats: 8, hdop: 1.1 } });
+  beat({});
+  assert.deepEqual(dash.last('pose').pose, { imu: true, roll: 3.2, pitch: -7, yaw: 90 });
   const count = frames();
-  beat({ gps: { lat: 12.9715987, lon: 77.5945627, sats: 8, hdop: 1.14 } });
+  beat({});
   assert.equal(frames(), count);
-  beat({ roll: 999, gps: { lat: 0, lon: 0 } });
-  assert.deepEqual(dash.last('pose').pose, { imu: false, roll: null, pitch: -7, yaw: 90, gps: null });
+  beat({ roll: 999 });
+  assert.deepEqual(dash.last('pose').pose, { imu: false, roll: null, pitch: -7, yaw: 90 });
   hub.removeSonarNode(board);
-  assert.deepEqual(dash.last('pose').pose, { imu: false, roll: null, pitch: null, yaw: null, gps: null });
+  assert.deepEqual(dash.last('pose').pose, { imu: false, roll: null, pitch: null, yaw: null });
 });

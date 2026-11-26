@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 const NO_SONAR = { online: false, deviceId: null, front: null, left: null, right: null, back: null, rssi: null };
-const NO_POSE = { imu: false, roll: null, pitch: null, yaw: null, gps: null };
-const OFFLINE = { online: false, deviceId: null, motion: 'stop', front: false, rear: false, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: { l: null, c: null, r: null }, sensors: { soil: null, rain: null, fire: null }, gps: null, buzzer: { fitted: false, muted: false }, rssi: null };
+const NO_POSE = { imu: false, roll: null, pitch: null, yaw: null };
+const OFFLINE = { online: false, deviceId: null, motion: 'stop', front: false, rear: false, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: { l: null, c: null, r: null }, sensors: { soil: null, rain: null, fire: null }, buzzer: { fitted: false, muted: false }, rssi: null };
 
 /** The fire-sensor board is its own device, so it has its own presence and readings. */
 const NO_FIRE = { online: false, deviceId: null, channels: [false, false, false, false, false], count: 0, rssi: null };
@@ -38,13 +38,11 @@ export function useRover() {
   const [motors, setMotors] = useState([]);
   /** The second ESP32's light sensor: true dark, false bright, null when there is no reading. */
   const [motorDark, setMotorDark] = useState(null);
-  /** Headlights driven by the second ESP32: {front, rear, auto}, or null when it drives none. */
-  const [motorLights, setMotorLights] = useState(null);
   /** Soil and rain wired to the second ESP32: {soil, rain}, or null when it reports none. */
   const [motorSensors, setMotorSensors] = useState(null);
   /** Four-side distances from the third ESP32. */
   const [sonar, setSonar] = useState(NO_SONAR);
-  /** Tilt, heading and GPS from the third ESP32. */
+  /** Tilt and heading from the third ESP32. */
   const [pose, setPose] = useState(NO_POSE);
   // Probe bookkeeping lives in a ref: it changes every 2 s and must not re-run the connection effect.
   const probe = useRef({ next: 1, open: new Map(), history: [], serverMs: null, roverMs: null, roverOnline: false });
@@ -110,7 +108,6 @@ export function useRover() {
           if (Array.isArray(msg.motors)) {
             setMotors(msg.motors);
             setMotorDark(msg.motorDark ?? null);
-            setMotorLights(msg.motorLights ?? null);
             setMotorSensors(msg.motorSensors ?? null);
           }
           if (probe.current.roverOnline !== msg.rover.online) {
@@ -127,7 +124,6 @@ export function useRover() {
         } else if (msg.type === 'motors') {
           setMotors(Array.isArray(msg.boards) ? msg.boards : []);
           setMotorDark(msg.dark ?? null);
-          setMotorLights(msg.lights ?? null);
           setMotorSensors(msg.sensors ?? null);
         } else if (msg.type === 'pong') {
           const p = probe.current;
@@ -152,7 +148,6 @@ export function useRover() {
         setFire(NO_FIRE);
         setMotors([]);
         setMotorDark(null);
-        setMotorLights(null);
         setMotorSensors(null);
         setSonar(NO_SONAR);
         setPose(NO_POSE);
@@ -210,5 +205,5 @@ export function useRover() {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(frame));
   }, []);
 
-  return { link, rover, quality, fire, motors, motorDark, motorLights, motorSensors, sonar, pose, error, send, key, setKey };
+  return { link, rover, quality, fire, motors, motorDark, motorSensors, sonar, pose, error, send, key, setKey };
 }

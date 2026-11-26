@@ -1,5 +1,5 @@
 /*
-  AgriVision 6WD: THIRD ESP32 (ultrasonic sensors, MPU-6050 tilt sensor, NEO GPS): WebSocket version.
+  AgriVision 6WD: THIRD ESP32 (ultrasonic sensors and MPU-6050 tilt sensor): WebSocket version.
 
   Connects to  ws://<laptop>:5000/ws?role=sonar  and sends the distance seen on each side. The dashboard shows
   them on the Rover control page. This board only measures: it does not drive or stop any motor.
@@ -21,8 +21,6 @@
     Mount it flat with its printed X arrow pointing FORWARD. Keep the rover still for the first 3 seconds after
     power-up: the gyro zeroes itself then. Heading is relative (no compass) and drifts slowly.
 
-  NEO GPS:  GPS TX -> GPIO 26, GPS RX -> GPIO 27, VCC (3.3 V, or 5 V if the module is marked for it), GND.
-    9600 baud. A first fix needs open sky and can take a few minutes.
 
   Libraries (Library Manager): "WebSockets" by Markus Sattler, "ArduinoJson" v7. Board package: esp32 3.x.
   WiFi and server settings: copy secrets.example.h to secrets.h in this folder and fill it in.
@@ -75,21 +73,6 @@ bool imuOk = false;
 float roll = 0, pitch = 0, yaw = 0;
 float gyroBias[3] = {0, 0, 0};
 unsigned long lastImuUs = 0, lastImuMs = 0, lastImuTryMs = 0;
-
-// ---- NEO GPS (UART) -----------------------------------------------------------
-const int PIN_GPS_RX = 26;                         // connect to the GPS module's TX
-const int PIN_GPS_TX = 27;                         // connect to the GPS module's RX
-const unsigned long GPS_BAUD = 9600;
-const unsigned long GPS_STALE_MS = 5000;           // a fix older than this is no longer reported
-
-HardwareSerial gpsSerial(2);
-char gpsLine[100];
-int gpsLen = 0;
-unsigned long gpsBytes = 0, gpsFixMs = 0;
-bool gpsHasFix = false;
-double gpsLat = 0, gpsLon = 0;
-int gpsSats = 0;
-float gpsHdop = 0;
 
 // ---- pose reporting ------------------------------------------------------------
 const unsigned long POSE_MIN_GAP_MS = 100;         // at most 10 updates a second
@@ -323,66 +306,6 @@ void updateImu() {
   }
 }
 
-// NMEA "ddmm.mmmm" plus hemisphere to signed degrees.
-double nmeaDegrees(const char* value, const char* hemisphere) {
-  double v = atof(value);
-  int degrees = (int)(v / 100);
-  double result = degrees + (v - degrees * 100) / 60.0;
-  return (*hemisphere == 'S' || *hemisphere == 'W') ? -result : result;
-}
-
-// "$..GGA,time,lat,N,lon,E,quality,satellites,hdop,..*CS": the sentence with position and fix quality.
-void parseGpsLine(char* line) {
-  if (strlen(line) < 10 || line[0] != '$' || strncmp(line + 3, "GGA", 3) != 0) return;
-  char* star = strchr(line, '*');
-  if (!star) return;
-  uint8_t sum = 0;
-  for (char* c = line + 1; c < star; c++) sum ^= (uint8_t)*c;
-  if (sum != (uint8_t)strtol(star + 1, nullptr, 16)) return;
-  *star = 0;
-  const char* field[16];
-  int n = 0;
-  field[n++] = line;
-  for (char* c = line; *c && n < 16; c++) {
-    if (*c == ',') {
-      *c = 0;
-      field[n++] = c + 1;
-    }
-  }
-  if (n < 9) return;
-  gpsSats = atoi(field[7]);
-  if (atoi(field[6]) == 0 || !*field[2] || !*field[4]) {
-    gpsHasFix = false;
-    return;
-  }
-  gpsLat = nmeaDegrees(field[2], field[3]);
-  gpsLon = nmeaDegrees(field[4], field[5]);
-  gpsHdop = atof(field[8]);
-  if (!gpsHasFix) {
-    stamp();
-    Serial.printf("GPS fix: %.6f, %.6f (%d satellites)\n", gpsLat, gpsLon, gpsSats);
-  }
-  gpsHasFix = true;
-  gpsFixMs = millis();
-}
-
-void updateGps() {
-  while (gpsSerial.available()) {
-    char c = gpsSerial.read();
-    gpsBytes++;
-    if (c == '\n') {
-      gpsLine[gpsLen] = 0;
-      parseGpsLine(gpsLine);
-      gpsLen = 0;
-    } else if (c != '\r') {
-      if (c == '$') gpsLen = 0;
-      if (gpsLen < (int)sizeof(gpsLine) - 1) gpsLine[gpsLen++] = c;
-    }
-  }
-}
-
-bool gpsFresh() { return gpsHasFix && millis() - gpsFixMs < GPS_STALE_MS; }
-
 void sendPose() {
   if (!registered) return;
   JsonDocument doc;
@@ -392,13 +315,6 @@ void sendPose() {
     doc["roll"] = round(roll * 10) / 10.0;
     doc["pitch"] = round(pitch * 10) / 10.0;
     doc["yaw"] = round(yaw * 10) / 10.0;
-  }
-  if (gpsFresh()) {
-    JsonObject gps = doc["gps"].to<JsonObject>();
-    gps["lat"] = gpsLat;
-    gps["lon"] = gpsLon;
-    gps["sats"] = gpsSats;
-    gps["hdop"] = gpsHdop;
   }
   String out;
   serializeJson(doc, out);
@@ -419,9 +335,7 @@ void printPose() {
   stamp();
   if (imuOk) Serial.printf("POSE roll %.1f  pitch %.1f  heading %.1f deg", roll, pitch, yaw);
   else Serial.print("POSE tilt sensor not available");
-  if (gpsFresh()) Serial.printf(" | GPS %.6f, %.6f (%d satellites)\n", gpsLat, gpsLon, gpsSats);
-  else if (gpsBytes == 0) Serial.println(" | GPS no data: check GPS TX -> GPIO 26 and its power");
-  else Serial.printf(" | GPS waiting for a fix (%d satellites)\n", gpsSats);
+  Serial.println();
 }
 
 void onEvent(WStype_t type, uint8_t* payload, size_t length) {
@@ -491,9 +405,6 @@ void setup() {
   Wire.begin(PIN_SDA, PIN_SCL, 400000);
   Wire.setTimeOut(20);
   startImu();
-  gpsSerial.setRxBufferSize(1024);                 // holds a second of GPS text while this board is busy
-  gpsSerial.begin(GPS_BAUD, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
-  Serial.printf("GPS: listening on GPIO %d at %lu baud\n", PIN_GPS_RX, GPS_BAUD);
 
   WiFi.onEvent(onWifiEvent);
   WiFi.mode(WIFI_STA);
@@ -526,7 +437,6 @@ void setup() {
 void loop() {
   ws.loop();
   updateImu();
-  updateGps();
   updateSonars();
   unsigned long now = millis();
   if (registered && ((now - lastPoseMs >= POSE_MIN_GAP_MS && poseChanged()) || now - lastPoseMs >= POSE_MAX_GAP_MS)) sendPose();

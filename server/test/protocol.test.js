@@ -91,15 +91,6 @@ test('rover status: navigation fields are validated and optional', () => {
   assert.deepEqual(withSensors.msg.sensors, { soil: 41, rain: null, fire: 2 });
 });
 
-test('rover GPS: only a real fix is kept', () => {
-  const ok = parseRoverMessage('{"type":"status","motion":"stop","front":0,"rear":0,"gps":{"lat":12.971612,"lon":77.594601,"sats":9,"hdop":1.14}}');
-  assert.deepEqual(ok.msg.gps, { lat: 12.971612, lon: 77.594601, sats: 9, hdop: 1.1 });
-  for (const bad of ['{"lat":0,"lon":0}', '{"lat":91,"lon":10}', '{"lat":"1","lon":2}', '{"lon":2}']) {
-    const r = parseRoverMessage(`{"type":"status","motion":"stop","front":0,"rear":0,"gps":${bad}}`);
-    assert.equal(r.msg.gps, null, bad);
-  }
-  assert.equal(parseRoverMessage('{"type":"status","motion":"stop","front":0,"rear":0}').msg.gps, null);
-});
 
 test('horn and alarm mute take booleans only', () => {
   assert.equal(parseDashboardMessage('{"type":"horn","on":true}').ok, true);

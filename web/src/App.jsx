@@ -13,7 +13,7 @@ import RangeScene from './RangeScene.jsx';
 import AccountPage from './AccountPage.jsx';
 import FireFan from './FireScene.jsx';
 import {
-  Chevron, IconUser, IconBulb, IconHorn, IconCloudSun, IconControl, IconInfo, IconSprout, IconSupport, Lamp as LampMark, Logo, Menu, Moon, SensorMark, StopMark, Sun,
+  Chevron, IconUser, IconHorn, IconCloudSun, IconControl, IconInfo, IconSprout, IconSupport, Logo, Menu, Moon, SensorMark, StopMark, Sun,
 } from './marks.jsx';
 import SupportPage from './SupportPage.jsx';
 import CameraCard from './CameraCard.jsx';
@@ -39,7 +39,6 @@ const mmss = (ms) => {
 const PAGES = [
   { id: 'control', title: 'control.title', Icon: IconControl },
   { id: 'view3d', title: 'view3d.title', Icon: IconControl },
-  { id: 'lights', title: 'lights.title', Icon: IconBulb },
   { id: 'sensors', title: 'sensors.title', Icon: IconSprout },
   { id: 'environment', title: 'field.title', Icon: IconCloudSun },
   { id: 'support', title: 'support.title', Icon: IconSupport },
@@ -66,11 +65,7 @@ function useMedia(query) {
 
 export default function App() {
   const { t, locale } = usePrefs();
-  const { link, rover, quality, fire, motors, motorDark, motorLights, motorSensors, sonar, pose, error, send, key, setKey } = useRover();
-  // The headlights hang on the second ESP32 (next to the light sensor); a rover board that has them still works.
-  const lamps = motorLights
-    ? { online: true, ...motorLights, dark: motorDark }
-    : { online: rover.online, front: rover.front, rear: rover.rear, auto: rover.auto, dark: rover.dark };
+  const { link, rover, quality, fire, motors, motorDark, motorSensors, sonar, pose, error, send, key, setKey } = useRover();
   const [armed, setArmed] = useState(false);
 
   const linked = link === 'open' && rover.online;
@@ -97,27 +92,6 @@ export default function App() {
     if (!linked) setArmed(false);
   }, [linked]);
 
-  // Switching a lamp off remembers its level, so switching on restores it.
-  const lastLevel = useRef({ front: 100, rear: 100 });
-  const setLamp = (light, level) => {
-    if (lamps.online) send({ type: 'light', light, level });
-  };
-  const toggleLamp = (light) => {
-    const now = lamps[light];
-    if (now > 0) lastLevel.current[light] = now;
-    setLamp(light, now > 0 ? 0 : lastLevel.current[light]);
-  };
-  const toggleLampRef = useRef(toggleLamp);
-  toggleLampRef.current = toggleLamp;
-
-  // AUTO hands the headlights to the light sensor; any manual lamp change on the
-  // rover ends it, and the rover's report keeps this button honest.
-  const toggleAuto = () => {
-    if (lamps.online) send({ type: 'light_mode', mode: lamps.auto ? 'manual' : 'auto' });
-  };
-  const toggleAutoRef = useRef(toggleAuto);
-  toggleAutoRef.current = toggleAuto;
-
   // The manual / auto-navigate switch is hidden for now. If the rover is still in auto from before, hand it back to
   // manual so the drive keys are not left locked with no way to unlock them.
   useEffect(() => {
@@ -133,8 +107,6 @@ export default function App() {
         halt();
         return;
       }
-      if (!event.repeat && k === 'l') return toggleAutoRef.current();
-      if (!event.repeat && (k === 'f' || k === 'r')) return toggleLampRef.current(k === 'f' ? 'front' : 'rear');
       const cmd = KEY_COMMANDS[k];
       if (!cmd) return;
       event.preventDefault(); // arrow keys would scroll the page
@@ -366,13 +338,11 @@ export default function App() {
                     <p className="hero-title">{rover.online ? t('hero.ready') : t('hero.waiting')}</p>
                     <p className="hero-sub">
                       {rover.online
-                        ? `${
-                            navAuto
-                              ? t('hero.navigating', { state: t(`navstate.${rover.navState}`) })
-                              : rover.motion === 'stop'
-                                ? t('hero.holding')
-                                : t('hero.moving', { dir: t(`motion.${rover.motion}`) })
-                          } · ${lamps.auto ? t('hero.lightsAuto') : t('hero.lightsManual')}`
+                        ? navAuto
+                          ? t('hero.navigating', { state: t(`navstate.${rover.navState}`) })
+                          : rover.motion === 'stop'
+                            ? t('hero.holding')
+                            : t('hero.moving', { dir: t(`motion.${rover.motion}`) })
                         : t('hero.waitingSub')}
                     </p>
                   </div>
@@ -426,28 +396,7 @@ export default function App() {
               </>
             )}
 
-            {page === 'view3d' && <Rover3DPage pose={pose} sonar={sonar} />}
-
-            {page === 'lights' && (
-              <section className="card c-lights" aria-label={t('lights.title')}>
-                <h2 className="card-title">
-                  {t('lights.title')}
-                  <span className="mono card-note">{t('lights.note')}</span>
-                </h2>
-                <button type="button" className="arm auto-lights" aria-pressed={lamps.auto} disabled={!lamps.online} onClick={toggleAuto}>
-                  <span className="arm-state mono">{(lamps.auto ? t('lights.auto') : t('lights.manual')).toUpperCase()}</span>
-                  <span className="arm-text">
-                    {lamps.auto
-                      ? t('lights.autoText', { sensor: lamps.dark ? t('lights.sensorDark') : t('lights.sensorBright') })
-                      : t('lights.manualText')}
-                  </span>
-                </button>
-                <div className="lamps">
-                  <Lamp name={t('lamp.front')} hint="F" level={lamps.front} disabled={!lamps.online} onToggle={() => toggleLamp('front')} onLevel={(v) => setLamp('front', v)} />
-                  <Lamp name={t('lamp.rear')} hint="R" level={lamps.rear} disabled={!lamps.online} onToggle={() => toggleLamp('rear')} onLevel={(v) => setLamp('rear', v)} />
-                </div>
-              </section>
-            )}
+            {page === 'view3d' && <Rover3DPage pose={pose} sonar={sonar} motion={rover.online ? rover.motion : 'stop'} />}
 
             {page === 'sensors' && <FieldSensors sensors={rover.sensors} boardSensors={motorSensors} fire={fire} online={rover.online} buzzer={rover.buzzer} send={send} />}
 
@@ -463,7 +412,7 @@ export default function App() {
                 </section>
                 <section className="card c-status" aria-label={t('status.title')}>
                   <h2 className="card-title">{t('status.title')}</h2>
-                  <Specs link={link} rover={rover} motors={motors} motorDark={motorDark} motorLights={motorLights} sonar={sonar} />
+                  <Specs link={link} rover={rover} motors={motors} motorDark={motorDark} sonar={sonar} />
                 </section>
                 <section className="card c-runs" aria-label={t('runs.title')}>
                   <h2 className="card-title">{t('runs.title')}</h2>
@@ -769,77 +718,7 @@ function DrawerAccount() {
   );
 }
 
-/** Slider commands are sent at most this often while dragging, plus once on release. */
-const SEND_EVERY_MS = 60;
-
-function Lamp({ name, hint, level, disabled, onToggle, onLevel }) {
-  const { t } = usePrefs();
-  // While the operator drags, show their value; the rover's report catches up after.
-  const [drag, setDrag] = useState(null);
-  const lastSent = useRef(0);
-  const trailing = useRef(null);
-  const settle = useRef(null);
-  const shown = drag ?? level;
-  const on = level > 0;
-
-  useEffect(() => () => {
-    clearTimeout(trailing.current);
-    clearTimeout(settle.current);
-  }, []);
-
-  const change = (event) => {
-    const value = Number(event.target.value);
-    setDrag(value);
-    clearTimeout(settle.current);
-    const wait = SEND_EVERY_MS - (Date.now() - lastSent.current);
-    clearTimeout(trailing.current);
-    if (wait <= 0) {
-      lastSent.current = Date.now();
-      onLevel(value);
-    } else {
-      trailing.current = setTimeout(() => {
-        lastSent.current = Date.now();
-        onLevel(value);
-      }, wait);
-    }
-  };
-
-  const release = (event) => {
-    const value = Number(event.currentTarget.value);
-    clearTimeout(trailing.current);
-    lastSent.current = Date.now();
-    onLevel(value);
-    settle.current = setTimeout(() => setDrag(null), 600);
-  };
-
-  return (
-    <div className="lamp" data-on={on || undefined} data-disabled={disabled || undefined}>
-      <button type="button" className="lamp-toggle" aria-pressed={on} disabled={disabled} onClick={onToggle}>
-        <LampMark on={on} />
-        <span className="lamp-name">{name}</span>
-        <span className="lamp-state mono">{on ? `${shown}%` : t('lamp.off').toUpperCase()}</span>
-        <span className="hint mono">{hint}</span>
-      </button>
-      <input
-        className="dim"
-        type="range"
-        min="0"
-        max="100"
-        step="5"
-        value={shown}
-        disabled={disabled}
-        aria-label={t('lamp.brightness', { name })}
-        aria-valuetext={t('lamp.percent', { n: shown })}
-        onChange={change}
-        onPointerUp={release}
-        onKeyUp={release}
-        onBlur={release}
-      />
-    </div>
-  );
-}
-
-function Specs({ link, rover, motors = [], motorDark = null, motorLights = null, sonar }) {
+function Specs({ link, rover, motors = [], motorDark = null, sonar }) {
   const { t } = usePrefs();
   const [db, setDb] = useState(null);
   useEffect(() => {
@@ -875,18 +754,17 @@ function Specs({ link, rover, motors = [], motorDark = null, motorLights = null,
         t('status.navigation'),
         rover.online ? (rover.nav === 'auto' ? `${t('status.auto')} · ${t(`navstate.${rover.navState}`)}` : t('status.manual')) : dash,
       ],
-      [t('status.lights'), motorLights || rover.online ? ((motorLights ?? rover).auto ? t('status.auto') : t('status.manual')) : dash],
       [
         t('status.sensor'),
         // The sensor now sits on the second ESP32; a rover board that reports one still works.
         (motorDark ?? (rover.online ? rover.dark : null)) != null
-          ? (motorDark ?? rover.dark) ? t('lights.sensorDark') : t('lights.sensorBright')
+          ? (motorDark ?? rover.dark) ? t('status.sensorDark') : t('status.sensorBright')
           : dash,
       ],
       [t('status.signal'), rover.online && rover.rssi != null ? `${rover.rssi} dBm` : dash],
       [t('status.connected'), link === 'open' ? mmss(now - since) : dash],
     ],
-    [t, link, rover, motors, motorDark, motorLights, sonar, now, since, db],
+    [t, link, rover, motors, motorDark, sonar, now, since, db],
   );
 
   return (

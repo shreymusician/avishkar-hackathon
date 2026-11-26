@@ -6,7 +6,7 @@ camera, field sensors, obstacle distances, a 3D view of the rover, weather and f
 ```
 browser (React)  <--ws-->  server (Hono, Node)  <--ws-->  ESP32 #1  four motors (front and middle axles)
                                 |      |         <--ws-->  ESP32 #2  rear motors, flame, light, lamps, soil, rain, camera servo
-               MongoDB Atlas ---+      |         <--ws-->  ESP32 #3  ultrasonic x4, MPU-6050 tilt sensor, GPS
+               MongoDB Atlas ---+      |         <--ws-->  ESP32 #3  ultrasonic x4, MPU-6050 tilt sensor
                                        +--- USB webcam on the server computer (read by ffmpeg)
 ```
 
@@ -31,7 +31,7 @@ Production-style: `npm start` builds the web app and serves it from the server o
 | --- | --- | --- |
 | `first_esp32_ws` | ESP32 #1: front and middle axles | `rover` |
 | `second_esp32_ws` | ESP32 #2: rear axle and field sensors | `motor` and `sensor` |
-| `third_esp32_ws` | ESP32 #3: distances, tilt and position | `sonar` |
+| `third_esp32_ws` | ESP32 #3: distances and tilt | `sonar` |
 
 1. In each sketch folder copy `secrets.example.h` to `secrets.h` and fill in the WiFi, the server computer's
    address and the access key (`ROVER_KEY` must match `ACCESS_KEY` in `.env`). `secrets.h` is git-ignored.
@@ -62,7 +62,7 @@ Motors use TB6612FNG drivers: STBY and VCC to 3.3 V, VM to battery +, all ground
 | Soil moisture (AO) | 35 |
 | Rain sensor (AO) | 34 |
 
-### ESP32 #3: distances, tilt and position
+### ESP32 #3: distances and tilt
 
 | Part | GPIO |
 | --- | --- |
@@ -71,7 +71,6 @@ Motors use TB6612FNG drivers: STBY and VCC to 3.3 V, VM to battery +, all ground
 | Ultrasonic right | 18, 5 |
 | Ultrasonic back | 17, 16 |
 | MPU-6050 (SDA, SCL) | 32, 33 |
-| NEO GPS (module TX, module RX) | 26, 27 |
 
 An HC-SR04's Echo pin is 5 V and ESP32 pins take 3.3 V only: put a divider (1 kΩ and 2 kΩ) on each Echo line, or
 use 3.3 V modules. Mount the MPU-6050 flat with its X arrow forward and keep the rover still for the first three
@@ -80,9 +79,8 @@ seconds after power-up.
 ## What the console shows
 
 - **Rover control:** drive stick, live camera with pan buttons, and distances on all four sides.
-- **3D rover view:** the rover tilting and turning with the real one, nearby obstacles, and the GPS track. Heading
-  comes from the gyro alone (no compass), so it drifts; **Facing north now** resets it.
-- **Headlights:** automatic from the light sensor, or manual.
+- **3D rover view:** the rover tilting and turning with the real one, with nearby obstacles. Heading comes from the
+  gyro alone (no compass), so it drifts; **Facing north now** resets it.
 - **Field sensors:** soil moisture, rain and five flame channels. Calibrate soil and rain with the `*_DRY_RAW` and
   `*_WET_RAW` values in `second_esp32_ws.ino`.
 - **Live environmental data:** weather, soil forecast and air quality for the rover's position.
@@ -109,20 +107,18 @@ sensor.
 The **server** works out where the field is and fetches the data; the browser only asks it
 (`GET /api/environment`) and never calls third parties. The position is chosen in this order:
 
-1. **Rover GPS (precise, live).** With the NEO GPS on ESP32 #3, the weather, soil and forecast follow the rover.
-2. **Phone location.** Used when the rover has no fix and the browser shares its position (needs https).
-3. **Network location (approximate).** Otherwise the server looks up the network address: city level at best.
+1. **Phone location.** Used when the browser shares its position (needs https).
+2. **Network location (approximate).** Otherwise the server looks up the network address: city level at best.
 
 Weather, soil (surface and root zone), next rain, sunrise and sunset, a 3-day forecast, air quality and
 plain farm prompts (rain coming, good spraying window, heat, wind, frost, fungal weather) come from free,
 key-less APIs: Open-Meteo, BigDataCloud (place name) and ipwho.is. Results are cached on the server for
-10 minutes per ~100 m cell, so many dashboards cost one lookup. In `npm run sim`, `SIM_GPS=1` (or `g` +
-Enter) gives the simulated rover a GPS fix.
+10 minutes per ~100 m cell, so many dashboards cost one lookup.
 
 ## App layout (mobile first)
 
 The dashboard is built like an Android app. A coloured **app bar** with a **menu button** (three lines)
-opens a **navigation drawer** with pages for **Rover control, 3D rover view, Headlights, Field sensors, Live environmental data,
+opens a **navigation drawer** with pages for **Rover control, 3D rover view, Field sensors, Live environmental data,
 Farmer support, Rover status** (which also holds Field runs) and **Account**. Only one page shows at a
 time, so there is no long scroll. Swipe in from the left edge to open the drawer, or swipe left / tap the
 dim area / press Esc to close it; the address bar (`#/navigation` and so on) and the browser's back button

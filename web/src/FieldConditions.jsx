@@ -6,15 +6,14 @@ import { SensorMark } from './marks.jsx';
 const num = (v, digits = 0) => (v == null ? '—' : Number(v).toFixed(digits));
 
 /**
- * Weather, soil and farm prompts for the field. The server chooses the position (the rover's GPS when it
- * has a fix, otherwise the network's city-level location) and does the lookups; this only shows them.
+ * Weather, soil and farm prompts for the field. The server chooses the position (this phone's location when
+ * shared, otherwise the network's city-level location) and does the lookups; this only shows them.
  */
 export default function FieldConditions({ accessKey }) {
   const { t, locale } = usePrefs();
   const field = useField(accessKey);
   const { status, data, source, position, updating, updatedAt } = field;
   const busy = status === 'loading' || updating;
-  const live = source === 'rover';
   const phone = source === 'phone';
 
   const dayName = (iso, n) =>
@@ -34,8 +33,8 @@ export default function FieldConditions({ accessKey }) {
     <section className="card c-cond" aria-label={t('field.title')}>
       <h2 className="card-title">
         {t('field.title')}
-        <span className="mono card-note" data-source={live || phone ? 'gps' : undefined}>
-          {live ? t('field.roverGps').toUpperCase() : phone ? t('field.phoneGps').toUpperCase() : source === 'network' ? t('field.netApprox').toUpperCase() : ''}
+        <span className="mono card-note" data-source={phone ? 'gps' : undefined}>
+          {phone ? t('field.phoneGps').toUpperCase() : source === 'network' ? t('field.netApprox').toUpperCase() : ''}
         </span>
       </h2>
 
@@ -54,7 +53,7 @@ export default function FieldConditions({ accessKey }) {
         <div className="locate" role="status">
           <p className="locate-text">
             {{ http: t('field.notice.http'), denied: t('field.notice.denied'), unavailable: t('field.notice.unavailable'), timeout: t('field.notice.timeout') }[field.locationIssue] ??
-              t('field.notice.noGps')}
+              t('field.notice.network')}
           </p>
         </div>
       )}
@@ -64,16 +63,9 @@ export default function FieldConditions({ accessKey }) {
           <p className="place">
             <strong>{data.place ?? `${num(position.lat, 3)}, ${num(position.lon, 3)}`}</strong>
             <span className="mono">
-              {(live || phone) && position.accuracy != null && position.accuracy > 0 && `${t('field.accuracy', { n: position.accuracy })} · `}
-              {live && position.sats != null && `${t('field.sats', { n: position.sats })} · `}
+              {phone && position.accuracy != null && position.accuracy > 0 && `${t('field.accuracy', { n: position.accuracy })} · `}
               {t('field.elev', { n: num(data.elevation) }).toUpperCase()}
             </span>
-            {live && (
-              <span className="live mono">
-                <span className="dot" aria-hidden="true" />
-                {t('field.live').toUpperCase()}
-              </span>
-            )}
           </p>
 
           <div className="now">

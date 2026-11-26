@@ -14,11 +14,8 @@ const NO_FIRE = Object.freeze({ online: false, deviceId: null, channels: Object.
 /** The ultrasonic board: offline, no distances. */
 const NO_SONAR = Object.freeze({ online: false, deviceId: null, front: null, left: null, right: null, back: null, rssi: null });
 
-/** Tilt, heading and position from the same board: nothing known. */
-const NO_POSE = Object.freeze({ imu: false, roll: null, pitch: null, yaw: null, gps: null });
-
-/** A GPS fix at about 1 m resolution, so receiver jitter below that does not flood dashboards. */
-const gpsKey = (g) => (g ? `${g.lat.toFixed(5)},${g.lon.toFixed(5)}` : '');
+/** Tilt and heading from the same board: nothing known. */
+const NO_POSE = Object.freeze({ imu: false, roll: null, pitch: null, yaw: null });
 
 /** Constant-time string comparison; an empty expected key means "open". */
 export function keyMatches(expected, given) {
@@ -59,7 +56,7 @@ export class Hub {
     this.sonarNode = null;
     this.sonar = NO_SONAR;
     this.pose = NO_POSE;
-    this.state = { online: false, deviceId: null, motion: 'stop', front: 0, rear: 0, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: NO_SCAN, sensors: NO_SENSORS, gps: null, buzzer: NO_BUZZER, rssi: null };
+    this.state = { online: false, deviceId: null, motion: 'stop', front: 0, rear: 0, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: NO_SCAN, sensors: NO_SENSORS, buzzer: NO_BUZZER, rssi: null };
   }
 
   // ---- dashboards ---------------------------------------------------------
@@ -140,7 +137,7 @@ export class Hub {
     // A reconnecting board supersedes its own lingering socket.
     if (this.rover && this.rover.ws !== ws) this.rover.ws.close(4000, 'superseded');
     this.rover = { ws, lastSeen: this.now(), registeredAt: this.now(), statuses: 0, lastType: 'device_register' };
-    this.state = { online: true, deviceId: parsed.msg.deviceId, motion: 'stop', front: 0, rear: 0, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: NO_SCAN, sensors: NO_SENSORS, gps: null, buzzer: NO_BUZZER, rssi: null };
+    this.state = { online: true, deviceId: parsed.msg.deviceId, motion: 'stop', front: 0, rear: 0, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: NO_SCAN, sensors: NO_SENSORS, buzzer: NO_BUZZER, rssi: null };
     this.log.info(`[hub] rover online: ${parsed.msg.deviceId}`);
     this.#send(ws, { type: 'register_ack', deviceId: parsed.msg.deviceId, serverTime: new Date(this.now()).toISOString() });
     this.#broadcastRover();
@@ -159,17 +156,16 @@ export class Hub {
     if (parsed.msg.type === 'pong') return this.#answerPing(parsed.msg.id);
     if (parsed.msg.type !== 'status') return;
     this.rover.statuses += 1;
-    const { motion, front, rear, auto, dark, nav, navState, sonar, scan, sensors, gps, buzzer, rssi } = parsed.msg;
+    const { motion, front, rear, auto, dark, nav, navState, sonar, scan, sensors, buzzer, rssi } = parsed.msg;
     const prev = this.state;
     const signalShifted = rssi !== prev.rssi && (rssi === null || prev.rssi === null || Math.abs(rssi - prev.rssi) >= 5);
     const changed = motion !== prev.motion || front !== prev.front || rear !== prev.rear ||
       auto !== prev.auto || dark !== prev.dark ||
       nav !== prev.nav || navState !== prev.navState || sonar !== prev.sonar ||
       sensors.soil !== prev.sensors.soil || sensors.rain !== prev.sensors.rain || sensors.fire !== prev.sensors.fire ||
-      gpsKey(gps) !== gpsKey(prev.gps) ||
       buzzer.fitted !== prev.buzzer.fitted || buzzer.muted !== prev.buzzer.muted ||
       scan.l !== prev.scan.l || scan.c !== prev.scan.c || scan.r !== prev.scan.r || signalShifted;
-    this.state = { ...prev, motion, front, rear, auto, dark, nav, navState, sonar, scan, sensors, gps, buzzer, rssi: changed ? rssi : prev.rssi };
+    this.state = { ...prev, motion, front, rear, auto, dark, nav, navState, sonar, scan, sensors, buzzer, rssi: changed ? rssi : prev.rssi };
     // Heartbeats that change nothing are not rebroadcast; they only keep the rover alive.
     if (changed) this.#broadcastRover();
   }
@@ -492,7 +488,7 @@ export class Hub {
 
   #rover_offline() {
     this.rover = null;
-    this.state = { online: false, deviceId: null, motion: 'stop', front: 0, rear: 0, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: NO_SCAN, sensors: NO_SENSORS, gps: null, buzzer: NO_BUZZER, rssi: null };
+    this.state = { online: false, deviceId: null, motion: 'stop', front: 0, rear: 0, auto: false, dark: null, nav: 'manual', navState: 'idle', sonar: false, scan: NO_SCAN, sensors: NO_SENSORS, buzzer: NO_BUZZER, rssi: null };
     this.#broadcastRover();
   }
 
